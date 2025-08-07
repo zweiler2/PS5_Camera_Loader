@@ -115,7 +115,7 @@ pub fn main() !void {
         1,
     );
 
-    std.log.info("Finished uploading firmware!", .{});
+    try std.io.getStdOut().writer().print("Finished uploading firmware!\n", .{});
 }
 
 fn ctrlTransferWrapper(
@@ -149,7 +149,7 @@ fn ctrlTransferWrapper(
         std.log.err("USB transfer error: {s}", .{getLibusbError(bytes_written)});
         return error.TransferError;
     } else if (bytes_written > 0 and bytes_written != w_length) {
-        std.log.warn("libusb reported only {d} bytes transferred, but firmware file is {d} bytes", .{ bytes_written, w_length });
+        std.log.err("libusb reported only {d} bytes transferred, but firmware file is {d} bytes", .{ bytes_written, w_length });
         return error.IncompleteTransfer;
     }
 }
