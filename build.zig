@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -20,7 +21,14 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .@"system-libudev" = false,
     });
-    exe.linkLibrary(libusb.artifact("usb"));
+    exe.addIncludePath(libusb.path("libusb"));
+
+    if (target.result.os.tag == .linux or target.result.os.tag.isDarwin()) {
+        exe.linkLibrary(libusb.artifact("usb"));
+    } else if (target.result.os.tag == .windows) {
+        exe.linkSystemLibrary("setupapi");
+        exe.linkSystemLibrary("winusb");
+    }
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
