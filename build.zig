@@ -15,7 +15,12 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
-    exe.linkSystemLibrary("usb-1.0");
+    const libusb = b.dependency("libusb", .{
+        .target = target,
+        .optimize = optimize,
+        .@"system-libudev" = false,
+    });
+    exe.linkLibrary(libusb.artifact("usb"));
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

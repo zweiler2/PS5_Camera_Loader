@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @cImport({
-    @cInclude("libusb-1.0/libusb.h");
+    @cInclude("libusb.h");
 });
 
 const CHUNK_SIZE = 512; // Bulk transfers are limited to 512 bytes per USB standard

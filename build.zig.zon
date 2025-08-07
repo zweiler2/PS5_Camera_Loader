@@ -3,7 +3,12 @@
     .version = "1.0.0",
     .fingerprint = 0xed5c5c513ef3e271, // Changing this has security and trust implications.
     .minimum_zig_version = "0.14.1",
-    .dependencies = .{},
+    .dependencies = .{
+        .libusb = .{
+            .url = "git+https://github.com/Copper280z/libusb.git?ref=0.14.0#16363194d28271a44c97d0a43430a66396917b8f",
+            .hash = "libusb-1.0.26-AAAAAEKNFwDiE_wMzHNS-kPYpsOSgGdwuWEIdVTq9WnO",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
