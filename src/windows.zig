@@ -1,14 +1,10 @@
 const std = @import("std");
+const main_file = @import("main.zig");
 const c = @cImport({
     @cInclude("windows.h");
     @cInclude("winusb.h");
     @cInclude("setupapi.h");
 });
-
-const CHUNK_SIZE = 512; // Bulk transfers are limited to 512 bytes per USB standard
-
-const vendor_id = 0x05a9;
-const product_id = 0x0580;
 
 // Windows GUID for the device interface
 // {932F61A9-6CF0-6FAF-8861-DA0D8B023C5F}
@@ -19,30 +15,7 @@ const DEVICE_INTERFACE_GUID = c.GUID{
     .Data4 = .{ 0x88, 0x61, 0xDA, 0x0D, 0x8B, 0x02, 0x3C, 0x5F },
 };
 
-pub fn windowsInit() !void {
-    // Create an allocator
-    var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator: std.mem.Allocator = arena.allocator();
-
-    // Get arguments with proper cross-platform support
-    var args: std.process.ArgIterator = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
-
-    // Skip program name but store it for error message
-    const prog_name: [:0]const u8 = args.next() orelse return error.NoProgramName;
-
-    // Get firmware path argument
-    const firmware_path: [:0]const u8 = args.next() orelse {
-        std.log.err(
-            \\Please provide a firmware file path.
-            \\
-            \\Usage:
-            \\  {s} <path{c}to{c}firmware_file.bin>
-        , .{ prog_name, std.fs.path.sep, std.fs.path.sep });
-        return error.NoFirmwarePath;
-    };
-
+pub fn loader(allocator: std.mem.Allocator, firmware_file: *const std.fs.File) !void {
     // Get device info set
     const dev_info = c.SetupDiGetClassDevsW(
         &DEVICE_INTERFACE_GUID,
@@ -132,34 +105,31 @@ pub fn windowsInit() !void {
     defer _ = c.WinUsb_Free(winusb_handle);
 
     // Upload firmware
-    try uploadFirmware(winusb_handle, firmware_path);
+    try uploadFirmware(winusb_handle, firmware_file);
 
     try std.io.getStdOut().writer().print("Finished uploading firmware!\n", .{});
 }
 
-fn uploadFirmware(winusb_handle: c.WINUSB_INTERFACE_HANDLE, firmware_path: [:0]const u8) !void {
-    const firmware_file: std.fs.File = try std.fs.cwd().openFile(firmware_path, .{});
-    defer firmware_file.close();
-
+fn uploadFirmware(winusb_dev_handle: c.WINUSB_INTERFACE_HANDLE, firmware_file: *const std.fs.File) !void {
     const file_size: u64 = try firmware_file.getEndPos();
     try firmware_file.seekTo(0);
 
-    var chunk: [CHUNK_SIZE]u8 = [_]u8{0} ** CHUNK_SIZE;
+    var chunk: [main_file.CHUNK_SIZE]u8 = [_]u8{0} ** main_file.CHUNK_SIZE;
     var index: u16 = 0x14;
     var value: u16 = 0;
 
     var pos: u32 = 0;
     while (pos < file_size) {
-        const size: u16 = @min(CHUNK_SIZE, file_size - pos);
+        const size: u16 = @min(main_file.CHUNK_SIZE, file_size - pos);
         _ = try firmware_file.read(chunk[0..@intCast(size)]);
 
         try winUsbControlTransfer(
-            winusb_handle,
-            0x40, // bmRequestType
-            0x0, // bRequest
-            value, // wValue
-            index, // wIndex
-            size, // wLength
+            winusb_dev_handle,
+            0x40,
+            0x0,
+            value,
+            index,
+            size,
             &chunk,
         );
 
@@ -174,18 +144,18 @@ fn uploadFirmware(winusb_handle: c.WINUSB_INTERFACE_HANDLE, firmware_path: [:0]c
     // Final transfer
     chunk[0] = 0x5b;
     try winUsbControlTransfer(
-        winusb_handle,
-        0x40, // bmRequestType
-        0x0, // bRequest
-        0x2200, // wValue
-        0x8018, // wIndex
-        1, // wLength
+        winusb_dev_handle,
+        0x40,
+        0x0,
+        0x2200,
+        0x8018,
+        1,
         &chunk,
     );
 }
 
 fn winUsbControlTransfer(
-    handle: c.WINUSB_INTERFACE_HANDLE,
+    dev_handle: c.WINUSB_INTERFACE_HANDLE,
     bm_request_type: u8,
     b_request: u8,
     w_value: u16,
@@ -203,7 +173,7 @@ fn winUsbControlTransfer(
 
     var bytes_transferred: c.ULONG = undefined;
     if (c.WinUsb_ControlTransfer(
-        handle,
+        dev_handle,
         setup,
         data,
         w_length,
