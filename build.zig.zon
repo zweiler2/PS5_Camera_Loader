@@ -1,0 +1,12 @@
+.{
+    .name = .PS5_Camera_Loader,
+    .version = "1.0.0",
+    .fingerprint = 0xed5c5c513ef3e271, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.14.1",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
