@@ -34,7 +34,7 @@ pub fn main() !void {
     defer firmware_file.close();
 
     if (builtin.os.tag == .windows) {
-        try @import("windows.zig").loader(allocator, &firmware_file);
+        try @import("windows_winusb.zig").loader(allocator, &firmware_file);
     } else if (builtin.os.tag == .linux or builtin.os.tag.isDarwin()) {
         try @import("linux.zig").loader(&firmware_file);
     } else {
