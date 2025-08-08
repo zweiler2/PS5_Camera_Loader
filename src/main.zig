@@ -4,13 +4,14 @@ const c = @cImport({
     @cInclude("libusb.h");
 });
 
-pub const CHUNK_SIZE = 512; // Bulk transfers are limited to 512 bytes per USB standard
+// Bulk transfers are limited to 512 bytes per USB standard
+pub const CHUNK_SIZE = 512;
 
-pub const vendor_id = 0x05a9;
-pub const product_id = 0x0580;
+pub const VENDOR_ID = 0x05A9;
+pub const PRODUCT_ID = 0x0580;
 
 // Device only has one 1 USB interface (see `lsusb` output)
-const interface_num = 0;
+const INTERFACE_NUM = 0;
 
 pub fn main() !void {
     // Create an allocator
@@ -42,7 +43,9 @@ pub fn main() !void {
     var libusb_context: ?*c.libusb_context = null;
     var rc: c_int = c.libusb_init(&libusb_context);
 
-    _ = c.libusb_set_option(libusb_context, c.LIBUSB_OPTION_LOG_LEVEL, c.LIBUSB_LOG_LEVEL_ERROR);
+    if (c.libusb_set_option(libusb_context, c.LIBUSB_OPTION_LOG_LEVEL, c.LIBUSB_LOG_LEVEL_ERROR) != c.LIBUSB_SUCCESS) {
+        std.log.err("Failed to set libusb log level", .{});
+    }
 
     if (rc != c.LIBUSB_SUCCESS) {
         std.log.err("Failed to initialize libusb: {s}", .{getLibusbError(rc)});
@@ -50,7 +53,7 @@ pub fn main() !void {
     }
     defer c.libusb_exit(libusb_context);
 
-    const libusb_dev_handle: ?*c.libusb_device_handle = c.libusb_open_device_with_vid_pid(libusb_context, vendor_id, product_id);
+    const libusb_dev_handle: ?*c.libusb_device_handle = c.libusb_open_device_with_vid_pid(libusb_context, VENDOR_ID, PRODUCT_ID);
     if (libusb_dev_handle == null) {
         std.log.err("Could not open device", .{});
         return error.DeviceNotFound;
@@ -59,8 +62,8 @@ pub fn main() !void {
 
     // Can't claim the device if the operating system is using it
     if (builtin.os.tag != .windows) {
-        if (c.libusb_kernel_driver_active(libusb_dev_handle, interface_num) != c.LIBUSB_SUCCESS) {
-            if (c.libusb_detach_kernel_driver(libusb_dev_handle, interface_num) != c.LIBUSB_SUCCESS) {
+        if (c.libusb_kernel_driver_active(libusb_dev_handle, INTERFACE_NUM) != c.LIBUSB_SUCCESS) {
+            if (c.libusb_detach_kernel_driver(libusb_dev_handle, INTERFACE_NUM) != c.LIBUSB_SUCCESS) {
                 std.log.err("Failed to detach kernel driver: {s}", .{getLibusbError(rc)});
                 return error.KernelDriverDetachFailed;
             }
@@ -68,12 +71,19 @@ pub fn main() !void {
         }
     }
 
-    rc = c.libusb_claim_interface(libusb_dev_handle, interface_num);
+    rc = c.libusb_claim_interface(libusb_dev_handle, INTERFACE_NUM);
     if (rc != c.LIBUSB_SUCCESS) {
         std.log.err("Failed to claim interface: {s}", .{getLibusbError(rc)});
         return error.InterfaceClaimFailed;
     }
-    defer _ = c.libusb_release_interface(libusb_dev_handle, interface_num);
+    defer blk: {
+        const release_interface: c_int = c.libusb_release_interface(libusb_dev_handle, INTERFACE_NUM);
+        if (release_interface == c.LIBUSB_ERROR_NO_DEVICE) {
+            break :blk;
+        } else if (release_interface != c.LIBUSB_SUCCESS) {
+            std.log.err("Failed to release libusb interface: {s}", .{getLibusbError(release_interface)});
+        }
+    }
 
     // Upload firmware
     try uploadFirmware(libusb_dev_handle, &firmware_file);
