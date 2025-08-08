@@ -11,7 +11,6 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .link_libc = true,
         }),
     });
     b.installArtifact(exe);
@@ -22,13 +21,7 @@ pub fn build(b: *std.Build) void {
         .@"system-libudev" = false,
     });
     exe.addIncludePath(libusb.path("libusb"));
-
-    if (target.result.os.tag == .linux or target.result.os.tag.isDarwin()) {
-        exe.linkLibrary(libusb.artifact("usb"));
-    } else if (target.result.os.tag == .windows) {
-        exe.linkSystemLibrary("setupapi");
-        exe.linkSystemLibrary("winusb");
-    }
+    exe.linkLibrary(libusb.artifact("usb"));
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
