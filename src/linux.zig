@@ -27,11 +27,12 @@ pub fn loader(firmware_file: *const std.fs.File) !void {
     const interface_num = 0;
 
     // Can't claim the device if the operating system is using it
-    if (c.libusb_kernel_driver_active(libusb_dev_handle, interface_num) != 0) {
+    if (c.libusb_kernel_driver_active(libusb_dev_handle, interface_num) != c.LIBUSB_SUCCESS) {
         if (c.libusb_detach_kernel_driver(libusb_dev_handle, interface_num) != c.LIBUSB_SUCCESS) {
             std.log.err("Failed to detach kernel driver: {s}", .{getLibusbError(rc)});
             return error.KernelDriverDetachFailed;
         }
+        try std.io.getStdOut().writer().print("Detaching kernel driver!\n", .{});
     }
 
     rc = c.libusb_claim_interface(libusb_dev_handle, interface_num);
@@ -39,6 +40,7 @@ pub fn loader(firmware_file: *const std.fs.File) !void {
         std.log.err("Failed to claim interface: {s}", .{getLibusbError(rc)});
         return error.InterfaceClaimFailed;
     }
+    defer _ = c.libusb_release_interface(libusb_dev_handle, interface_num);
 
     // Upload firmware
     try uploadFirmware(libusb_dev_handle, firmware_file);
@@ -53,8 +55,8 @@ fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *c
     var chunk: [main_file.CHUNK_SIZE]u8 = [_]u8{0} ** main_file.CHUNK_SIZE;
     var index: u16 = 0x14;
     var value: u16 = 0;
-
     var pos: u32 = 0;
+
     while (pos < file_size) {
         const size: u16 = @min(main_file.CHUNK_SIZE, file_size - pos);
         _ = try firmware_file.read(chunk[0..@intCast(size)]);
