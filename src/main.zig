@@ -42,7 +42,7 @@ pub fn main() !void {
     var libusb_context: ?*c.libusb_context = null;
     var rc: c_int = c.libusb_init(&libusb_context);
 
-    _ = c.libusb_set_option(libusb_context, c.LIBUSB_OPTION_LOG_LEVEL, c.LIBUSB_LOG_LEVEL_WARNING);
+    _ = c.libusb_set_option(libusb_context, c.LIBUSB_OPTION_LOG_LEVEL, c.LIBUSB_LOG_LEVEL_ERROR);
 
     if (rc != c.LIBUSB_SUCCESS) {
         std.log.err("Failed to initialize libusb: {s}", .{getLibusbError(rc)});
@@ -50,7 +50,6 @@ pub fn main() !void {
     }
     defer c.libusb_exit(libusb_context);
 
-    // TODO: Don't do it like this, use `libusb_get_device_list` to find the device
     const libusb_dev_handle: ?*c.libusb_device_handle = c.libusb_open_device_with_vid_pid(libusb_context, vendor_id, product_id);
     if (libusb_dev_handle == null) {
         std.log.err("Could not open device", .{});
