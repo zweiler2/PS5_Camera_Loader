@@ -19,6 +19,13 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator: std.mem.Allocator = arena.allocator();
 
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer: std.fs.File.Writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout: *std.io.Writer = &stdout_writer.interface;
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_writer: std.fs.File.Writer = std.fs.File.stderr().writer(&stderr_buffer);
+    const stderr: *std.io.Writer = &stderr_writer.interface;
+
     // Get arguments with proper cross-platform support
     var args: std.process.ArgIterator = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
@@ -28,12 +35,12 @@ pub fn main() !void {
 
     // Get firmware path argument
     const firmware_path: [:0]const u8 = args.next() orelse {
-        std.log.err(
-            \\Please provide a firmware file path.
+        try stderr.print(
+            \\Please provide a firmware file path!
+            \\Usage: {s} <path{c}to{c}firmware_file.bin>
             \\
-            \\Usage:
-            \\  {s} <path{c}to{c}firmware_file.bin>
         , .{ prog_name, std.fs.path.sep, std.fs.path.sep });
+        try stderr.flush();
         std.process.exit(1);
     };
 
@@ -44,18 +51,21 @@ pub fn main() !void {
     var rc: c_int = c.libusb_init(&libusb_context);
 
     if (c.libusb_set_option(libusb_context, c.LIBUSB_OPTION_LOG_LEVEL, c.LIBUSB_LOG_LEVEL_ERROR) != c.LIBUSB_SUCCESS) {
-        std.log.err("Failed to set libusb log level", .{});
+        try stderr.print("Failed to set libusb log level", .{});
+        try stderr.flush();
     }
 
     if (rc != c.LIBUSB_SUCCESS) {
-        std.log.err("Failed to initialize libusb: {s}", .{getLibusbError(rc)});
+        try stderr.print("Failed to initialize libusb: {s}\n", .{getLibusbError(rc)});
+        try stderr.flush();
         return error.LibUsbInitFailed;
     }
     defer c.libusb_exit(libusb_context);
 
     const libusb_dev_handle: ?*c.libusb_device_handle = c.libusb_open_device_with_vid_pid(libusb_context, VENDOR_ID, PRODUCT_ID);
     if (libusb_dev_handle == null) {
-        std.log.err("Could not open device", .{});
+        try stderr.print("Could not open device\n", .{});
+        try stderr.flush();
         return error.DeviceNotFound;
     }
     defer c.libusb_close(libusb_dev_handle);
@@ -64,16 +74,19 @@ pub fn main() !void {
     if (builtin.os.tag != .windows) {
         if (c.libusb_kernel_driver_active(libusb_dev_handle, INTERFACE_NUM) != c.LIBUSB_SUCCESS) {
             if (c.libusb_detach_kernel_driver(libusb_dev_handle, INTERFACE_NUM) != c.LIBUSB_SUCCESS) {
-                std.log.err("Failed to detach kernel driver: {s}", .{getLibusbError(rc)});
+                try stderr.print("Failed to detach kernel driver: {s}\n", .{getLibusbError(rc)});
+                try stderr.flush();
                 return error.KernelDriverDetachFailed;
             }
-            try std.io.getStdOut().writer().print("Detaching kernel driver!\n", .{});
+            try stdout.print("Detaching kernel driver!\n", .{});
+            try stdout.flush();
         }
     }
 
     rc = c.libusb_claim_interface(libusb_dev_handle, INTERFACE_NUM);
     if (rc != c.LIBUSB_SUCCESS) {
-        std.log.err("Failed to claim interface: {s}", .{getLibusbError(rc)});
+        try stderr.print("Failed to claim interface: {s}\n", .{getLibusbError(rc)});
+        try stderr.flush();
         return error.InterfaceClaimFailed;
     }
     defer blk: {
@@ -81,17 +94,19 @@ pub fn main() !void {
         if (release_interface == c.LIBUSB_ERROR_NO_DEVICE) {
             break :blk;
         } else if (release_interface != c.LIBUSB_SUCCESS) {
-            std.log.err("Failed to release libusb interface: {s}", .{getLibusbError(release_interface)});
+            stderr.print("Failed to release libusb interface: {s}\n", .{getLibusbError(release_interface)}) catch {};
+            stderr.flush() catch {};
         }
     }
 
     // Upload firmware
-    try uploadFirmware(libusb_dev_handle, &firmware_file);
+    try uploadFirmware(libusb_dev_handle, &firmware_file, stderr);
 
-    try std.io.getStdOut().writer().print("Finished uploading firmware!\n", .{});
+    try stdout.print("Finished uploading firmware!\n", .{});
+    try stdout.flush();
 }
 
-fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *const std.fs.File) !void {
+fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *const std.fs.File, stderr: *std.io.Writer) !void {
     const file_size: u64 = try firmware_file.getEndPos();
     try firmware_file.seekTo(0);
 
@@ -112,6 +127,7 @@ fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *c
             index,
             size,
             &chunk,
+            stderr,
         );
 
         if (@as(u32, value) + size > std.math.maxInt(u16)) {
@@ -132,6 +148,7 @@ fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *c
         0x8018,
         1,
         &chunk,
+        stderr,
     );
 }
 
@@ -143,6 +160,7 @@ fn libUsbControlTransfer(
     w_index: u16,
     w_length: u16,
     data: [*c]u8,
+    stderr: *std.io.Writer,
 ) !void {
     const bytes_transferred: c_int = c.libusb_control_transfer(
         dev_handle,
@@ -160,13 +178,16 @@ fn libUsbControlTransfer(
     if (bytes_transferred == c.LIBUSB_ERROR_NO_DEVICE) return;
 
     if (bytes_transferred == 0) {
-        std.log.err("No bytes transferred", .{});
+        try stderr.print("No bytes transferred", .{});
+        try stderr.flush();
         return error.NoBytesTransferred;
     } else if (bytes_transferred < 0) {
-        std.log.err("USB transfer error: {s}", .{getLibusbError(bytes_transferred)});
+        try stderr.print("USB transfer error: {s}", .{getLibusbError(bytes_transferred)});
+        try stderr.flush();
         return error.TransferError;
     } else if (bytes_transferred > 0 and bytes_transferred != w_length) {
-        std.log.err("libusb reported only {d} bytes transferred, but firmware file is {d} bytes", .{ bytes_transferred, w_length });
+        try stderr.print("libusb reported only {d} bytes transferred, but firmware file is {d} bytes", .{ bytes_transferred, w_length });
+        try stderr.flush();
         return error.IncompleteTransfer;
     }
 }

@@ -18,7 +18,6 @@ pub fn build(b: *std.Build) void {
     const libusb = b.dependency("libusb", .{
         .target = target,
         .optimize = optimize,
-        .@"system-libudev" = false,
     });
     exe.addIncludePath(libusb.path("libusb"));
     exe.linkLibrary(libusb.artifact("usb"));
