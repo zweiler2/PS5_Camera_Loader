@@ -80,6 +80,22 @@ sudo udevadm control --reload && sudo udevadm trigger
 
 Note that you need to redo step 4.2 every time you replug your PS5 Camera, because the camera resets to the default firmware on power loss.
 
+### 6. Bonus: Add autorun
+
+This makes the camera work automatically when you plug it in.
+The executable and the firmware must be in the right location (The one specified in the `100-playstation-camera.rules` file).
+
+```bash
+sudo cp PS5_Camera_Loader/PS5_Camera_Loader /usr/bin/PS5_Camera_Loader
+```
+
+```bash
+sudo cp PS5_Camera_Loader/firmware_discord_and_gamma_fix.bin /usr/lib/firmware/ps5-camera-firmware.bin
+```
+
+That's it! Now it should work automatically when you plug it in.
+There's no need to redo step 4.2 every time.
+
 ## Credits
 
 - Psxdev's [OrbisEyeCam](https://github.com/psxdev/OrbisEyeCam) Project for some code inspiration on the WinUSB implementation and the InstallDriver.exe
