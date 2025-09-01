@@ -96,6 +96,18 @@ sudo cp PS5_Camera_Loader/firmware_discord_and_gamma_fix.bin /usr/lib/firmware/p
 That's it! Now it should work automatically when you plug it in.
 There's no need to redo step 4.2 every time.
 
+### 7. Bonus: Remove autorun
+
+To remove autorun, you just need to delete the files you copied in step 6.
+
+```bash
+sudo rm /usr/bin/PS5_Camera_Loader
+```
+
+```bash
+sudo rm /usr/lib/firmware/ps5-camera-firmware.bin
+```
+
 ## Credits
 
 - Psxdev's [OrbisEyeCam](https://github.com/psxdev/OrbisEyeCam) Project for some code inspiration on the WinUSB implementation and the InstallDriver.exe
