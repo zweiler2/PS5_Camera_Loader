@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const version: std.SemanticVersion = .{ .major = 1, .minor = 0, .patch = 2 };
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -19,6 +21,7 @@ fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarge
             .target = target,
             .optimize = optimize,
         }),
+        .version = version,
     });
     b.installArtifact(exe);
 
@@ -47,6 +50,7 @@ fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarge
             .optimize = optimize,
             .link_libc = true,
         }),
+        .version = version,
     });
     b.installArtifact(exe);
 
