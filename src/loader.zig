@@ -13,6 +13,14 @@ pub const PRODUCT_ID = 0x0580;
 // Device only has one 1 USB interface (see `lsusb` output)
 const INTERFACE_NUM = 0;
 
+/// Command byte that signals the end of firmware upload and
+/// tells the device to start executing the uploaded firmware
+const FINAL_TRANSFER_COMMAND_BYTE = 0x5b;
+/// Value indicating the firmware activation command
+const FINAL_TRANSFER_VALUE = 0x2200;
+/// Index used for the final control transfer
+const FINAL_TRANSFER_INDEX = 0x8018;
+
 pub fn main() !void {
     // Create an allocator
     var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
@@ -139,13 +147,13 @@ fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *c
     }
 
     // Final transfer
-    chunk[0] = 0x5b;
+    chunk[0] = FINAL_TRANSFER_COMMAND_BYTE;
     try libUsbControlTransfer(
         libusb_dev_handle,
         c.LIBUSB_REQUEST_TYPE_VENDOR,
         0x0,
-        0x2200,
-        0x8018,
+        FINAL_TRANSFER_VALUE,
+        FINAL_TRANSFER_INDEX,
         1,
         &chunk,
         stderr,
