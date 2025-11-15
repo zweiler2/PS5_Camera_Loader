@@ -15,7 +15,7 @@ getent group plugdev
 And if it doesn't exist, create it:
 
 ```bash
-sudo groupadd plugdev
+sudo groupadd -r plugdev
 ```
 
 ### 2.2. Add your user to the plugdev group:
