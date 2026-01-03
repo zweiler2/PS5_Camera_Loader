@@ -23,9 +23,14 @@ const FINAL_TRANSFER_INDEX = 0x8018;
 
 pub fn main() !void {
     // Create an allocator
-    var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator: std.mem.Allocator = arena.allocator();
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+    defer {
+        const check = debug_allocator.deinit();
+        if (check == .leak) {
+            std.debug.print("A Memory leak was detected!\n", .{});
+        }
+    }
+    const allocator: std.mem.Allocator = debug_allocator.allocator();
 
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer: std.fs.File.Writer = std.fs.File.stdout().writer(&stdout_buffer);
