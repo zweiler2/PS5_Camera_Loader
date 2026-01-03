@@ -57,9 +57,6 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
-    const firmware_file: std.fs.File = try std.fs.cwd().openFile(firmware_path, .{});
-    defer firmware_file.close();
-
     var libusb_context: ?*c.libusb_context = null;
     var rc: c_int = c.libusb_init(&libusb_context);
 
@@ -113,14 +110,18 @@ pub fn main() !void {
     }
 
     // Upload firmware
-    try uploadFirmware(libusb_dev_handle, &firmware_file, stderr);
+    try uploadFirmware(libusb_dev_handle, firmware_path, stderr);
 
     try stdout.print("Finished uploading firmware!\n", .{});
     try stdout.flush();
 }
 
-fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_file: *const std.fs.File, stderr: *std.io.Writer) !void {
-    const file_size: u64 = try firmware_file.getEndPos();
+fn uploadFirmware(libusb_dev_handle: ?*c.libusb_device_handle, firmware_path: []const u8, stderr: *std.io.Writer) !void {
+    const firmware_file: std.fs.File = try std.fs.cwd().openFile(firmware_path, .{});
+    defer firmware_file.close();
+
+    const file_size: usize = std.math.cast(usize, try firmware_file.getEndPos()) orelse
+        return error.FileTooLarge;
     try firmware_file.seekTo(0);
 
     var chunk: [CHUNK_SIZE]u8 = [_]u8{0} ** CHUNK_SIZE;
