@@ -44,7 +44,8 @@ pub fn main() !void {
     defer args.deinit();
 
     // Skip program name but store it for error message
-    const prog_name: [:0]const u8 = args.next() orelse return error.NoProgramName;
+    const prog_name: [:0]const u8 = args.next() orelse
+        return error.NoProgramName;
 
     // Get firmware path argument
     const firmware_path: [:0]const u8 = args.next() orelse {
