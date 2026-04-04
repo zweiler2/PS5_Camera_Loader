@@ -1,19 +1,19 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const version: std.SemanticVersion = .{ .major = 1, .minor = 0, .patch = 2 };
+const VERSION = @import("build.zig.zon").version;
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    createFirmwareLoaderExecutable(b, target, optimize);
+    try createFirmwareLoaderExecutable(b, target, optimize);
     if (target.result.os.tag == .windows) {
-        createWindowsServiceExecutable(b, target, optimize);
+        try createWindowsServiceExecutable(b, target, optimize);
     }
 }
 
-fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
     const exe = b.addExecutable(.{
         .name = "PS5_Camera_Loader",
         .root_module = b.createModule(.{
@@ -21,7 +21,7 @@ fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarge
             .target = target,
             .optimize = optimize,
         }),
-        .version = version,
+        .version = try .parse(VERSION),
     });
     b.installArtifact(exe);
 
@@ -29,8 +29,8 @@ fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarge
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addIncludePath(libusb.path("libusb"));
-    exe.root_module.linkLibrary(libusb.artifact("usb"));
+    exe.root_module.addIncludePath(libusb.path("include"));
+    exe.root_module.linkLibrary(libusb.artifact("usb-1.0"));
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -41,7 +41,7 @@ fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarge
     run_step.dependOn(&run_cmd.step);
 }
 
-fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
     const exe = b.addExecutable(.{
         .name = "PS5_Camera_Windows_Service",
         .root_module = b.createModule(.{
@@ -50,7 +50,7 @@ fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarge
             .optimize = optimize,
             .link_libc = true,
         }),
-        .version = version,
+        .version = try .parse(VERSION),
     });
     b.installArtifact(exe);
 

@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
         .libusb = .{
-            .url = "git+https://github.com/zweiler2/libusb.git#ea303a4839e528b1fe338a7efeac91883677e274",
-            .hash = "libusb-1.0.29-TZJPwvM_GgAjHZNsn5Fp7443v8OEcoLBwzGh154LevTf",
+            .url = "git+https://github.com/zweiler2/libusb.git#ce69bf795abe23584493c8ff43434bbd6a81179b",
+            .hash = "libusb-1.0.29-TZJPwvpUAACLyy_wmNrhnQtHE1yKdNTvyoEC-Ejbgd01",
         },
     },
     .paths = .{
