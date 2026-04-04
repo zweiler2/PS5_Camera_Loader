@@ -8,9 +8,11 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     try createFirmwareLoaderExecutable(b, target, optimize);
-    if (target.result.os.tag == .windows) {
-        try createWindowsServiceExecutable(b, target, optimize);
-    }
+    try createWindowsServiceExecutable(b, blk: {
+        var target_query = target.query;
+        target_query.os_tag = .windows;
+        break :blk b.resolveTargetQuery(target_query);
+    }, optimize);
 }
 
 fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
@@ -48,12 +50,16 @@ fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarge
             .root_source_file = b.path("src/service.zig"),
             .target = target,
             .optimize = optimize,
-            .link_libc = true,
         }),
         .version = try .parse(VERSION),
     });
     b.installArtifact(exe);
 
+    const zigwin32 = b.dependency("zigwin32", .{});
+    exe.root_module.addImport("zigwin32", zigwin32.module("win32"));
+
+    exe.root_module.linkSystemLibrary("kernel32", .{});
+    exe.root_module.linkSystemLibrary("ntdll", .{});
     exe.root_module.linkSystemLibrary("advapi32", .{});
     exe.root_module.linkSystemLibrary("user32", .{});
 

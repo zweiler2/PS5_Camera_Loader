@@ -8,6 +8,10 @@
             .url = "git+https://github.com/zweiler2/libusb.git#ce69bf795abe23584493c8ff43434bbd6a81179b",
             .hash = "libusb-1.0.29-TZJPwvpUAACLyy_wmNrhnQtHE1yKdNTvyoEC-Ejbgd01",
         },
+        .zigwin32 = .{
+            .url = "git+https://github.com/marlersoft/zigwin32#fd6ebce3ebfe48f291069c0ddc518b2cc83be450",
+            .hash = "zigwin32-25.0.28-preview-AAAAALYs5QNcI6U4YMngK-zET_wKAM10AWdbIcWEUaYV",
+        },
     },
     .paths = .{
         "build.zig",

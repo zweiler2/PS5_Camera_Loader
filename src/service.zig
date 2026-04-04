@@ -1,220 +1,148 @@
 const std = @import("std");
-const c = @cImport({
-    // Force direct usage of W functions (for MINGW)
-    // istead of using the __MINGW_NAME_AW macro
-    // https://github.com/ziglang/zig/issues/9180
-    @cDefine("CreateEvent", "CreateEventW");
-    @cDefine("RegisterDeviceNotification", "RegisterDeviceNotificationW");
-    @cDefine("CreateService", "CreateServiceW");
-    @cDefine("OpenSCManager", "OpenSCManagerW");
-    @cDefine("StartServiceCtrlDispatcher", "StartServiceCtrlDispatcherW");
-    @cDefine("RegisterServiceCtrlHandlerEx", "RegisterServiceCtrlHandlerExW");
+const zigwin32 = @import("zigwin32");
 
-    // Architecture defines (for MSVC)
-    @cDefine("_M_AMD64", "100");
-    @cDefine("_AMD64_", "1");
-    @cDefine("_WIN64", "1");
-
-    // Include core Windows headers
-    @cInclude("windef.h");
-    @cInclude("winbase.h");
-    @cInclude("winuser.h");
-    @cInclude("winsvc.h");
-    @cInclude("dbt.h");
-});
+const L = std.unicode.utf8ToUtf16LeStringLiteral;
 
 const SERVICE_NAMEW = L("PS5CameraFirmwareLoader");
 const LOADER_PATH = "C:\\PS5_Camera_Loader\\PS5_Camera_Loader.exe";
 const FIRMWARE_PATH = "C:\\PS5_Camera_Loader\\firmware.bin";
 
-const GUID_DEVINTERFACE_USBBOOT: c.GUID =
-    .{
-        .Data1 = 0x932F61A9,
-        .Data2 = 0x6CF0,
-        .Data3 = 0x6FAF,
-        .Data4 = .{ 0x88, 0x61, 0xDA, 0x0D, 0x8B, 0x02, 0x3C, 0x5F },
-    };
+const GUID_DEVINTERFACE_USBBOOT: zigwin32.zig.Guid = .initString("932F61A9-6CF0-6FAF-8861-DA0D8B023C5F");
 
-var service_status_handle: c.SERVICE_STATUS_HANDLE = undefined;
-var service_status: c.SERVICE_STATUS = undefined;
-var service_stop_event: c.HANDLE = null;
+var service_status_handle: zigwin32.system.services.SERVICE_STATUS_HANDLE = undefined;
+var service_status: zigwin32.system.services.SERVICE_STATUS = undefined;
+var service_stop_event: std.os.windows.HANDLE = undefined;
 
 pub fn main() !u8 {
-    const service_table: [2]c.SERVICE_TABLE_ENTRYW = .{
+    const service_table: [2]zigwin32.system.services.SERVICE_TABLE_ENTRYW = .{
         .{ .lpServiceName = @ptrCast(@constCast(SERVICE_NAMEW)), .lpServiceProc = serviceMain },
         .{ .lpServiceName = null, .lpServiceProc = null },
     };
 
-    if (c.StartServiceCtrlDispatcherW(&service_table) == c.FALSE) {
-        return @intCast(c.GetLastError());
+    if (zigwin32.system.services.StartServiceCtrlDispatcherW(&service_table[0]) == std.os.windows.FALSE) {
+        return @intCast(@intFromEnum(std.os.windows.GetLastError()));
     }
 
     return 0;
 }
 
-fn launchFirmwareLoader() bool {
+fn launchFirmwareLoader() void {
     const cmdline = [_][]const u8{ LOADER_PATH, FIRMWARE_PATH };
 
     var process: std.process.Child = .init(&cmdline, std.heap.page_allocator);
-    process.spawn() catch {
-        return false;
-    };
-
-    _ = process.wait() catch {
-        return false;
-    };
-
-    return true;
+    _ = process.spawnAndWait() catch {};
 }
 
-fn serviceMain(argc: c.DWORD, argv: [*c]c.LPWSTR) callconv(.c) void {
+fn serviceMain(argc: std.os.windows.DWORD, argv: ?*?std.os.windows.LPWSTR) callconv(.winapi) void {
     _ = argc;
     _ = argv;
 
-    service_status_handle = c.RegisterServiceCtrlHandlerExW(
+    service_status_handle = zigwin32.system.services.RegisterServiceCtrlHandlerExW(
         SERVICE_NAMEW,
         serviceCrtlHandlerEx,
         null,
     );
-    if (service_status_handle == null) {
-        return;
-    }
 
     service_status = .{
-        .dwServiceType = c.SERVICE_WIN32,
-        .dwCurrentState = c.SERVICE_RUNNING,
-        .dwControlsAccepted = c.SERVICE_ACCEPT_STOP,
+        .dwServiceType = .{ .WIN32_OWN_PROCESS = 1 },
+        .dwCurrentState = .RUNNING,
+        .dwControlsAccepted = zigwin32.system.services.SERVICE_ACCEPT_STOP,
         .dwWin32ExitCode = 0,
         .dwServiceSpecificExitCode = 0,
         .dwCheckPoint = 0,
         .dwWaitHint = 0,
     };
 
-    if (c.SetServiceStatus(service_status_handle, &service_status) == c.FALSE) {
+    if (zigwin32.system.services.SetServiceStatus(service_status_handle, &service_status) == std.os.windows.FALSE) {
         return;
     }
 
     // Create a stop event to wait on
-    service_stop_event = c.CreateEvent(null, c.TRUE, c.FALSE, null);
-    defer _ = c.CloseHandle(service_stop_event);
-    if (service_stop_event == null) {
-        service_status.dwCurrentState = c.SERVICE_STOPPED;
-        service_status.dwWin32ExitCode = c.GetLastError();
-        _ = c.SetServiceStatus(service_status_handle, &service_status);
-        return;
-    }
+    service_stop_event = zigwin32.system.threading.CreateEventW(null, std.os.windows.TRUE, std.os.windows.FALSE, null) orelse
+        {
+            service_status.dwCurrentState = .STOPPED;
+            service_status.dwWin32ExitCode = @intFromEnum(std.os.windows.GetLastError());
+            _ = zigwin32.system.services.SetServiceStatus(service_status_handle, &service_status);
+            return;
+        };
+    defer std.os.windows.CloseHandle(service_stop_event);
 
-    service_status.dwCurrentState = c.SERVICE_RUNNING;
-    if (c.SetServiceStatus(service_status_handle, &service_status) == c.FALSE) {
+    service_status.dwCurrentState = .RUNNING;
+    if (zigwin32.system.services.SetServiceStatus(service_status_handle, &service_status) == std.os.windows.FALSE) {
         return;
     }
 
     // Create a worker thread to handle device events
-    const thread_handle: c.HANDLE = c.CreateThread(null, 0, serviceWorkerThread, null, 0, null);
-    defer _ = c.CloseHandle(thread_handle);
-    if (thread_handle == null) {
-        service_status.dwCurrentState = c.SERVICE_STOPPED;
-        service_status.dwWin32ExitCode = c.GetLastError();
-        _ = c.SetServiceStatus(service_status_handle, &service_status);
+    const thread_handle: std.os.windows.HANDLE = std.os.windows.kernel32.CreateThread(null, 0, serviceWorkerThread, null, 0, null) orelse {
+        service_status.dwCurrentState = .STOPPED;
+        service_status.dwWin32ExitCode = @intFromEnum(std.os.windows.GetLastError());
+        _ = zigwin32.system.services.SetServiceStatus(service_status_handle, &service_status);
         return;
-    }
+    };
+    defer std.os.windows.CloseHandle(thread_handle);
 
-    _ = c.WaitForSingleObject(thread_handle, c.INFINITE);
+    std.os.windows.WaitForSingleObject(thread_handle, std.os.windows.INFINITE) catch {};
 
-    service_status.dwCurrentState = c.SERVICE_STOPPED;
+    service_status.dwCurrentState = .STOPPED;
     service_status.dwWin32ExitCode = 0;
-    _ = c.SetServiceStatus(service_status_handle, &service_status);
+    _ = zigwin32.system.services.SetServiceStatus(service_status_handle, &service_status);
 }
 
-fn serviceCrtlHandlerEx(ctrl_code: c.DWORD, event_type: c.DWORD, event_data: c.PVOID, context: c.PVOID) callconv(.c) c.DWORD {
-    _ = event_type;
+fn serviceCrtlHandlerEx(
+    ctrl_code: std.os.windows.DWORD,
+    event_type: std.os.windows.DWORD,
+    event_data: ?std.os.windows.LPVOID,
+    context: ?std.os.windows.LPVOID,
+) callconv(.winapi) std.os.windows.DWORD {
     _ = context;
+
     switch (ctrl_code) {
-        c.SERVICE_CONTROL_STOP => {
-            service_status.dwCurrentState = c.SERVICE_STOPPED;
+        zigwin32.system.services.SERVICE_CONTROL_STOP => {
+            service_status.dwCurrentState = .STOPPED;
             service_status.dwWin32ExitCode = 0;
-            _ = c.SetServiceStatus(service_status_handle, &service_status);
-            _ = c.SetEvent(service_stop_event);
+            _ = zigwin32.system.services.SetServiceStatus(service_status_handle, &service_status);
+            _ = zigwin32.system.threading.SetEvent(service_stop_event);
         },
-        c.SERVICE_CONTROL_DEVICEEVENT => {
-            if (event_data) |real_event_data| {
-                const pHdr: c.PDEV_BROADCAST_HDR = @ptrCast(@alignCast(real_event_data));
-                if (pHdr.*.dbch_devicetype == c.DBT_DEVTYP_DEVICEINTERFACE) {
-                    _ = launchFirmwareLoader();
+        zigwin32.system.services.SERVICE_CONTROL_DEVICEEVENT => {
+            if (event_type == zigwin32.system.system_services.DBT_DEVICEARRIVAL) {
+                const dbch: *zigwin32.system.system_services.DEV_BROADCAST_HDR = @ptrCast(@alignCast(event_data));
+                if (dbch.dbch_devicetype == .DEVICEINTERFACE) {
+                    launchFirmwareLoader();
                 }
             }
         },
         else => {},
     }
 
-    return c.NO_ERROR;
+    return @intFromEnum(std.os.windows.Win32Error.SUCCESS);
 }
 
-fn serviceWorkerThread(param: c.PVOID) callconv(.c) c.DWORD {
+fn serviceWorkerThread(param: std.os.windows.LPVOID) callconv(.winapi) std.os.windows.DWORD {
     _ = param;
 
-    var notification_filter: c.DEV_BROADCAST_DEVICEINTERFACE_W = .{
-        .dbcc_size = @sizeOf(c.DEV_BROADCAST_DEVICEINTERFACE),
-        .dbcc_devicetype = c.DBT_DEVTYP_DEVICEINTERFACE,
+    var notification_filter: zigwin32.system.system_services.DEV_BROADCAST_DEVICEINTERFACE_W = .{
+        .dbcc_size = @sizeOf(zigwin32.system.system_services.DEV_BROADCAST_DEVICEINTERFACE_W),
+        .dbcc_devicetype = @intFromEnum(zigwin32.system.system_services.DBT_DEVTYP_DEVICEINTERFACE),
         .dbcc_classguid = GUID_DEVINTERFACE_USBBOOT,
+        .dbcc_name = .{0},
+        .dbcc_reserved = 0,
     };
 
-    const dev_notify_handle: c.HDEVNOTIFY = c.RegisterDeviceNotification(
-        service_status_handle,
+    const dev_notify_handle: std.os.windows.PVOID = zigwin32.ui.windows_and_messaging.RegisterDeviceNotificationW(
+        @ptrFromInt(@as(usize, @intCast(service_status_handle))),
         &notification_filter,
-        c.DEVICE_NOTIFY_SERVICE_HANDLE,
-    );
-
-    if (dev_notify_handle == null) {
+        .SERVICE_HANDLE,
+    ) orelse
         return 1;
-    }
+    defer _ = zigwin32.system.system_services.UnregisterDeviceNotification(dev_notify_handle);
 
-    while (c.WaitForSingleObject(service_stop_event, 100) != c.WAIT_OBJECT_0) {
-        // Service is running
-        std.Thread.sleep(std.time.ns_per_ms * 100); // Prevent tight loop
-    }
-
-    if (dev_notify_handle) |real_dev_notify_handle| {
-        _ = c.UnregisterDeviceNotification(real_dev_notify_handle);
+    while (true) {
+        std.os.windows.WaitForSingleObject(service_stop_event, 100) catch |err| {
+            if (err != error.WaitTimeOut) return @intFromError(err);
+            continue;
+        };
+        break; // WAIT_OBJECT_0 was signaled
     }
 
     return 0;
-}
-
-// zig fmt: off
-fn installService() void {
-    const sc_manager_handle: c.SC_HANDLE = c.OpenSCManagerW(
-        null,                        // local machine
-        null,                        // ServiceActive database
-        c.SC_MANAGER_CREATE_SERVICE, // full access rights
-    );
-    defer c.CloseServiceHandle(sc_manager_handle);
-    if (sc_manager_handle == null) {
-        return;
-    }
-
-    const sc_service_handle: c.SC_HANDLE = c.CreateServiceW(
-        sc_manager_handle,                                 // SC manager
-        SERVICE_NAMEW,                                     // name of service
-        SERVICE_NAMEW,                                     // service name to display
-        c.SERVICE_ALL_ACCESS,                              // desired access
-        c.SERVICE_WIN32_OWN_PROCESS,                       // service type
-        c.SERVICE_AUTO_START,                              // start type
-        c.SERVICE_ERROR_NORMAL,                            // error control type
-        L("C:\\PS5_Camera_Loader\\PS5_Camera_Loader.exe"), // Path to service's binary
-        null,                                              // no load ordering group
-        null,                                              // no tag identifier
-        null,                                              // no dependencies
-        null,                                              // LocalSystem account
-        null,                                              // no password
-    );
-    defer c.CloseServiceHandle(sc_service_handle);
-    if (sc_service_handle == null) {
-        return;
-    }
-}
-// zig fmt: on
-
-fn L(comptime str: [:0]const u8) [*:0]const u16 {
-    return std.unicode.utf8ToUtf16LeStringLiteral(str);
 }
