@@ -1,2 +1,6 @@
 .zig-cache
 zig-out
+releases
+resources/*.log
+resources/*.tar.gz
+resources/*.pkg.tar.zst*
