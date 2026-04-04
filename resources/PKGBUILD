@@ -1,0 +1,44 @@
+#shellcheck disable=SC2034,SC2154
+
+pkgname=PS5_Camera_Loader
+pkgver=1.0.3
+pkgrel=1
+pkgdesc='This makes the PS5 Camera work on a regular PC'
+arch=('x86_64')
+url='https://github.com/zweiler2/PS5_Camera_Loader'
+license=('MIT')
+makedepends=('zig')
+install=post.install
+source=("${pkgname}-${pkgver}.tar.gz::$url/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('f3a9b98ebf401b802323c40ea1f4ca2c4eee65fdaa50a43dd81675caec324092')
+
+build() {
+    cd "${pkgname}-${pkgver}" || exit 1
+
+    _arch="${CARCH:-$(uname -m)}"
+    case "$_arch" in
+        x86_64) _zig_target="x86_64-linux-gnu" ;;
+        aarch64|arm64) _zig_target="aarch64-linux-gnu" ;;
+        i686) _zig_target="i386-linux-gnu" ;;
+        *) _zig_target="${_arch}-linux-gnu" ;;
+    esac
+
+    _zig_optimize=ReleaseSmall
+    case "${CFLAGS:-}" in
+        *-O0*) _zig_optimize=Debug ;;
+        *-Os*) _zig_optimize=ReleaseSmall ;;
+        *-O1*|*-O2*|*-O3*) _zig_optimize=ReleaseFast ;;
+    esac
+
+    zig build -Dtarget="${_zig_target}" -Doptimize="${_zig_optimize}"
+}
+
+package() {
+    cd "${pkgname}-${pkgver}" || exit 1
+
+    install -Dm755 "zig-out/bin/${pkgname}" "${pkgdir}/usr/bin/${pkgname}"
+    install -Dm644 resources/firmware_discord_and_gamma_fix.bin "${pkgdir}/usr/lib/firmware/ps5-camera-firmware.bin"
+    install -Dm644 resources/100-playstation-camera.rules "${pkgdir}/etc/udev/rules.d/100-playstation-camera.rules"
+
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

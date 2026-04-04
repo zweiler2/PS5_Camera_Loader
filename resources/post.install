@@ -1,0 +1,16 @@
+post_install() {
+    # Ensure plugdev group exists
+    getent group plugdev >/dev/null 2>&1 || groupadd -r plugdev
+
+    # Reload udev rules
+    udevadm control --reload && udevadm trigger
+
+    # Remind User to add themselves to the plugdev group
+    echo -e "\033[1;33mINFO:\033[0m Don't forget to add yourself to the plugdev group!"
+    echo -e "\033[1;32mEnter the following command:\033[0m"
+    echo -e "\033[1;36msudo usermod -aG plugdev \"\$USER\"\033[0m"
+}
+
+post_remove() {
+    udevadm control --reload && udevadm trigger
+}
