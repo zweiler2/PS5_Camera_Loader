@@ -31,7 +31,7 @@ fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarge
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addIncludePath(libusb.path("include"));
+    exe.root_module.addImport("libusb", libusb.module("libusb"));
     exe.root_module.linkLibrary(libusb.artifact("usb-1.0"));
 
     const run_cmd = b.addRunArtifact(exe);
@@ -55,8 +55,8 @@ fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarge
     });
     b.installArtifact(exe);
 
-    const zigwin32 = b.dependency("zigwin32", .{});
-    exe.root_module.addImport("zigwin32", zigwin32.module("win32"));
+    const win32 = b.dependency("win32", .{});
+    exe.root_module.addImport("win32", win32.module("win32"));
 
     exe.root_module.linkSystemLibrary("kernel32", .{});
     exe.root_module.linkSystemLibrary("ntdll", .{});
