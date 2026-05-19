@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .libusb = .{
-            .url = "git+https://github.com/zweiler2/libusb.git#bc8a3c94afadb94ae4e7a8cf7a86c343f6254d54",
-            .hash = "libusb-1.0.29-TZJPwrdaAAACklO10YPcpv8r7Nmpwj5G9Fk3UhYnyjhT",
+            .url = "git+https://github.com/zweiler2/libusb.git#cf2a7817030ad0abded6fe10b08943b9035bf886",
+            .hash = "libusb-1.0.30-TZJPwrdaAACYHwp42x0SWGbffAL1QvKV2vtsrBqX5kd6",
         },
         .win32 = .{
             .url = "git+https://github.com/marlersoft/zigwin32.git#ec98bb4d9eea532320a8551720a9e3ec6de64994",
