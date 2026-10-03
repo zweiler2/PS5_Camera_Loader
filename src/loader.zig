@@ -125,7 +125,7 @@ fn uploadFirmware(io: std.Io, libusb_dev_handle: ?*libusb.libusb_device_handle, 
     const file_size: usize = std.math.cast(usize, try firmware_file.length(io)) orelse
         return error.FileTooLarge;
 
-    var chunk: [CHUNK_SIZE]u8 = [_]u8{0} ** CHUNK_SIZE;
+    var chunk: [CHUNK_SIZE]u8 = @splat(0);
     var index: u16 = 0x14;
     var value: u16 = 0;
     var pos: u32 = 0;

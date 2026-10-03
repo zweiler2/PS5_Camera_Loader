@@ -32,13 +32,10 @@ fn createFirmwareLoaderExecutable(b: *std.Build, target: std.Build.ResolvedTarge
         .optimize = optimize,
     });
     exe.root_module.addImport("libusb", libusb.module("libusb"));
-    exe.root_module.linkLibrary(libusb.artifact("usb-1.0"));
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
     const run_step = b.step("run-loader", "Run the loader app");
     run_step.dependOn(&run_cmd.step);
 }
@@ -65,9 +62,7 @@ fn createWindowsServiceExecutable(b: *std.Build, target: std.Build.ResolvedTarge
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
     const run_step = b.step("run-service", "Run the service app");
     run_step.dependOn(&run_cmd.step);
 }

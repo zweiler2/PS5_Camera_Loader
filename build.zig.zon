@@ -2,11 +2,11 @@
     .name = .PS5_Camera_Loader,
     .version = "1.0.3",
     .fingerprint = 0xed5c5c513ef3e271, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .libusb = .{
-            .url = "git+https://github.com/zweiler2/libusb.git#cf2a7817030ad0abded6fe10b08943b9035bf886",
-            .hash = "libusb-1.0.30-TZJPwrdaAACYHwp42x0SWGbffAL1QvKV2vtsrBqX5kd6",
+            .url = "git+https://github.com/zweiler2/libusb.git#0f24a238ea299f28c9970e684ff76fa254c1a862",
+            .hash = "libusb-1.0.30-TZJPwtJdAAA_BTGmKoedpz_YotVkqn34b7gZJReoEeAk",
         },
         .win32 = .{
             .url = "git+https://github.com/marlersoft/zigwin32.git#ec98bb4d9eea532320a8551720a9e3ec6de64994",
